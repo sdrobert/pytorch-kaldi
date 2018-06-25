@@ -1,0 +1,15 @@
+#! /usr/bin/env bash
+for x in exp/*/decode_dev*; do
+	if [ -d $x ]; then
+		# find the best WER for the dev set
+		dev_wer=$(
+			echo $x |
+			grep "${1:-.*}" >/dev/null &&
+			grep Sum $x/score_*/*.sys 2> /dev/null |
+			utils/best_wer.sh)
+		echo ${dev_wer}
+		test_file=$(echo "${dev_wer}" | awk '{print $(NF)}' | sed 's/decode_dev/decode_test/g')
+		grep -H Sum ${test_file} 2> /dev/null | utils/best_wer.sh
+	fi
+done
+exit 0
