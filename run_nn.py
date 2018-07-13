@@ -19,15 +19,18 @@
 
 import kaldi_io
 import numpy as np
-import torch
-from torch.autograd import Variable
-import timeit
-import torch.optim as optim
 import os
-from data_io import load_chunk,load_counts,read_conf
 import random
-import torch.nn as nn
 import sys
+import timeit
+import torch
+import torch.nn as nn
+import torch.optim as optim
+
+from data_io import load_chunk
+from data_io import load_counts
+from data_io import read_conf
+from torch.autograd import Variable
 
 
   
@@ -81,6 +84,14 @@ if NN_type=='GRU':
 if NN_type=='MLP':
    from neural_nets import MLP as ann
    rnn=0
+if NN_type=='CNN':
+   from neural_nets import ResNetGlobal as ann
+   rnn=1
+   options.conv_type = 'conv'
+if NN_type=='CNN_context':
+   from neural_nets import ResNet as ann
+   rnn=0
+   options.conv_type = 'conv'
 
 
 start_time=timeit.default_timer()

@@ -101,6 +101,11 @@ function write_conf {
     echo "twin_reg=$twin_reg" >> $conf_file
     echo "twin_w=$twin_w" >> $conf_file
     echo "multi_gpu=$multi_gpu" >> $conf_file
+    echo "block_type=$block_type" >> $conf_file
+    echo "channel_factor=$channel_factor" >> $conf_file
+    echo "ds_factor=$ds_factor" >> $conf_file
+    echo "group_counts=$group_counts" >> $conf_file
+    echo "init_channels=$init_channels" >> $conf_file
     echo " " >> $conf_file
     
     echo "[optimization]" >> $conf_file

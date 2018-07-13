@@ -168,8 +168,22 @@ def read_opts():
     
  if Config.has_option('architecture', 'cnn_pre'):
     options.cnn_pre=Config.get('architecture', 'cnn_pre')
-    
-    
+ 
+ if Config.has_option('architecture', 'block_type'):
+    options.block_type=Config.get('architecture', 'block_type')
+ 
+ if Config.has_option('architecture', 'channel_factor'):
+    options.channel_factor=Config.get('architecture', 'channel_factor')
+
+ if Config.has_option('architecture', 'ds_factor'):
+    options.ds_factor=Config.get('architecture', 'ds_factor')
+
+ if Config.has_option('architecture', 'group_counts'):
+    options.group_counts=Config.get('architecture', 'group_counts')
+
+ if Config.has_option('architecture', 'init_channels'):
+    options.init_channels=Config.get('architecture', 'init_channels')
+
  options.N_ep=Config.get('optimization', 'N_ep')
  options.lr=Config.get('optimization', 'lr')
  options.halving_factor=Config.get('optimization', 'halving_factor')
@@ -297,6 +311,21 @@ def read_conf():
     
  if Config.has_option('architecture', 'seed'):
     options.seed=Config.get('architecture', 'seed')
+ 
+ if Config.has_option('architecture', 'block_type'):
+    options.block_type=Config.get('architecture', 'block_type')
+ 
+ if Config.has_option('architecture', 'channel_factor'):
+    options.channel_factor=Config.get('architecture', 'channel_factor')
+
+ if Config.has_option('architecture', 'ds_factor'):
+    options.ds_factor=Config.get('architecture', 'ds_factor')
+
+ if Config.has_option('architecture', 'group_counts'):
+    options.group_counts=Config.get('architecture', 'group_counts')
+
+ if Config.has_option('architecture', 'init_channels'):
+    options.init_channels=Config.get('architecture', 'init_channels')
     
  # Optimization
  if Config.has_option('optimization', 'lr'):

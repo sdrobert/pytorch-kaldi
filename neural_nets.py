@@ -1,9 +1,10 @@
 import numpy as np
-import torch
-from torch.autograd import Variable
-import torch.nn.functional as F
-import torch.nn as nn
 import sys
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+from torch.autograd import Variable
 
 
 def flip(x, dim):
@@ -77,6 +78,249 @@ class normrelu(nn.Module):
 #        grad_input[input < 0] = 0
 #        return grad_input
 
+
+# see https://github.com/pytorch/vision/blob/master/torchvision/models/resnet.py
+class BasicBlock(nn.Module):
+    expansion = 1
+
+    def __init__(
+            self, in_channels, out_channels, stride=1, downsample=None,
+            conv_type='conv', act=nn.ReLU, batch_norm=True):
+        super(BasicBlock, self).__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.downsample = downsample
+        self.conv_type = conv_type
+        self.act = act()
+        self.stride = stride
+        if batch_norm:
+            self.bn1 = nn.BatchNorm2d(out_channels)
+            self.bn2 = nn.BatchNorm2d(out_channels)
+        else:
+            self.bn1 = self.bn2 = lambda x: x
+        if conv_type == 'conv':
+            self.lay1 = nn.Conv2d(
+                in_channels, out_channels, 3, stride=stride,
+                bias=False, padding=1,
+            )
+            self.lay2 = nn.Conv2d(
+                out_channels, out_channels, 3, bias=False,
+                padding=1,
+            )
+        else:
+            raise NotImplementedError(
+                'unsupported conv_type {}'.format(conv_type))
+
+    def forward(self, x):
+        residual = x
+        out = self.lay1(x)
+        out = self.bn1(out)
+        out = self.act(out)
+        out = self.lay2(out)
+        if self.downsample is not None:
+            residual = self.downsample(x)
+        out += residual
+        out = self.bn2(out)
+        out = self.act(out)
+        return out
+
+
+class BottleneckBlock(nn.Module):
+    expansion = 4
+
+    def __init__(
+            self, in_channels, out_channels, stride=1, downsample=None,
+            conv_type='conv', act=nn.ReLU, batch_norm=True):
+        super(BottleneckBlock, self).__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.downsample = downsample
+        self.conv_type = conv_type
+        self.act = act()
+        self.stride = stride
+        if batch_norm:
+            self.bn1 = nn.BatchNorm2d(out_channels)
+            self.bn2 = nn.BatchNorm2d(out_channels)
+            self.bn3 = nn.BatchNorm2d(out_channels * self.expansion)
+        else:
+            self.bn1 = self.bn2 = self.bn3 = lambda x: x
+        if conv_type == 'conv':
+            self.lay1 = nn.Conv2d(in_channels, out_channels, 1, bias=False)
+            self.lay2 = nn.Conv2d(
+                out_channels, out_channels, 3, stride=stride,
+                bias=False, padding=1,
+            )
+            self.lay3 = nn.Conv2d(
+                out_channels, out_channels * self.expansion, 1, bias=False)
+        else:
+            raise NotImplementedError(
+                'unsupported conv_type {}'.format(conv_type))
+
+    def forward(self, x):
+        residual = x
+        out = self.lay1(x)
+        out = self.bn1(out)
+        out = self.act(out)
+        out = self.lay2(out)
+        out = self.bn2(out)
+        out = self.act(out)
+        out = self.lay3(out)
+        if self.downsample is not None:
+            residual = self.downsample(x)
+        out += residual
+        # based on Microsoft 2016 conv speech rec system, moved batch norm down
+        out = self.bn3(out)
+        out = self.act(out)
+        return out
+
+
+# note that we don't collapse the frame axis here. This allows for a
+# "global"-style framewise classification (sans context windows). Use
+# ResNetContext otherwise
+class ResNetGlobal(nn.Module):
+
+    def __init__(self, options):
+        super(ResNetGlobal, self).__init__()
+        self.num_classes = options.num_classes
+        self.use_batchnorm = bool(int(options.use_batchnorm))
+        self.use_cuda = bool(int(options.use_cuda))
+        self.conv_type = options.conv_type
+        self.block_type = options.block_type
+        self.channel_factor = int(options.channel_factor)
+        self.ds_factor = int(options.ds_factor)
+        self.group_counts = tuple(
+            int(x) for x in options.group_counts.split(','))
+        self.init_channels = int(options.init_channels)
+        self.cost = options.cost
+        if options.act == 'relu':
+            act = nn.ReLU
+        elif options.act == 'tanh':
+            act = nn.Tanh
+        elif options.act == 'sigmoid':
+            act = nn.Sigmoid
+        elif options.act == 'normrelu':
+            act = normrelu
+        else:
+            raise ValueError('invalid activation: {}'.format(self.act))
+        if self.cost == 'nll':
+            self.criterion = nn.NLLLoss()
+        elif self.cost == 'mse':
+            self.criterion = nn.MSELoss()
+        blocks = []
+        in_channels = 1
+        out_channels = self.init_channels
+        for group_count in self.group_counts:
+            group, in_channels = self._make_group(
+                group_count, in_channels, out_channels, act)
+            out_channels *= self.channel_factor
+            blocks += group
+        self.blocks = nn.ModuleList(blocks)
+        self.avgpool = lambda x: x.mean(-1)
+        self.fc = nn.Conv1d(in_channels, self.num_classes, kernel_size=1)
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(
+                    m.weight, mode='fan_out', nonlinearity='relu')
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+
+    def _make_group(self, group_count, in_channels, out_channels, act):
+        if not group_count:
+            return [], in_channels
+        if self.block_type == 'basic':
+            block_class = BasicBlock
+        elif self.block_type == 'bottleneck':
+            block_class = BottleneckBlock
+        else:
+            raise ValueError('invalid block_type {}'.format(self.block_type))
+        downsample = None
+        if self.ds_factor != 1 or (
+                in_channels != out_channels * block_class.expansion):
+            if self.conv_type == 'conv':
+                downsample = nn.Conv2d(
+                    in_channels, out_channels * block_class.expansion,
+                    kernel_size=1, stride=self.ds_factor, bias=False,
+                )
+        group = [block_class(
+            in_channels, out_channels,
+            stride=self.ds_factor, downsample=downsample,
+            conv_type=self.conv_type,
+            act=act, batch_norm=self.use_batchnorm,
+        )]
+        in_channels = out_channels * block_class.expansion
+        for _ in range(1, group_count):
+            group.append(block_class(
+                in_channels, out_channels,
+                conv_type=self.conv_type, act=act,
+                batch_norm=self.use_batchnorm,
+            ))
+        return group, in_channels
+
+    def forward(self, x, lab, test_flag):
+        x = x.transpose(0, 1)  # (N, W, H)
+        assert test_flag != self.training
+        if self.use_cuda:
+            x = x.cuda()
+            lab = None if lab is None else lab.cuda()
+        x = x.unsqueeze(1)  # (N, C, W, H)
+        for block in self.blocks:
+            x = block(x)
+        x = self.avgpool(x)
+        x = self.fc(x)  # (N, C, W)
+        if lab is not None:
+            lab = lab.t()  # (N, W)
+            pred = torch.argmax(x, dim=1, keepdim=False)
+            err = torch.mean((pred != lab.long()).float())
+            if self.cost == "nll":
+                pout = F.log_softmax(x, dim=1)
+                loss = self.criterion(pout, lab.long())
+            elif self.cost == "mse":
+                raise NotImplementedError()
+            return [loss, err, pout]
+        else:
+            return x
+
+
+# microsoft context window size = 40
+class ResNet(ResNetGlobal):
+    '''A flexible ResNet implementation with an arbitrary number of blocks
+
+    Based on the Microsoft Conversational Speech Recognition systems
+    (2016 and 2017) [1]_. Removes the initial convolution before resnet blocks.
+    Also, does batch normalization right before the nonlinearity.
+
+    _[1] : https://www.microsoft.com/en-us/research/wp-content/uploads/2017/08/ms_swbd17-2.pdf
+    '''
+
+    def __init__(self, options):
+        super(ResNet, self).__init__(options)
+        self.cw_left = int(options.cw_left)
+        self.cw_right = int(options.cw_right)
+        self.input_dim = options.input_dim
+        self.avgpool = lambda x: x.mean(-1).mean(-1)
+        self.fc = nn.Linear(self.fc.in_channels, self.fc.out_channels)
+
+    def forward(self, x, lab, test_flag):
+        # one frame at a time (with context window)
+        batch = x.size()[0]
+        window_size = self.cw_left + self.cw_right + 1
+        num_feats = self.input_dim // window_size
+        x = x.view(batch, window_size, num_feats).t()  # (W, N, C)
+        if self.use_cuda:
+            x = x.cuda()
+            lab = lab.cuda()
+        x = super(ResNet, self).forward(x, None, test_flag)
+        x = x.view(batch, self.num_classes)  # (N, C)
+        pred = torch.argmax(x, dim=1, keepdim=False)
+        err = torch.mean((pred != lab.long()).float())
+        if self.cost == "nll":
+            pout = F.log_softmax(x, dim=1)
+            loss = self.criterion(pout, lab.long())
+        elif self.cost == "mse":
+            pout = x
+            loss = self.criterion(x, lab)
+        return [loss, err, pout]
 
 class MLP(nn.Module):
     def __init__(self, options):

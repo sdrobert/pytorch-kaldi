@@ -127,6 +127,7 @@ Likely, you forgot to add '--snip-edges=false' to the config files when \
     --nj ${feats_nj} \
     --mfcc-config "${mfcc_conf}" \
     --cmd "${train_cmd}" \
+    --compress false \
     "${s5_data_dir}/$x" "${exp_dir}/log/make_mfcc/$x" "${data_dir}/mfcc/$x"
   compare_lengths mfcc
   mv "${s5_data_dir}/$x/feats.scp" "${data_dir}/mfcc/$x/feats.scp"
@@ -145,6 +146,7 @@ Likely, you forgot to add '--snip-edges=false' to the config files when \
     --nj ${feats_nj} \
     --fbank-config "${kaldi_conf}" \
     --cmd "${train_cmd}" \
+    --compress false \
     "${s5_data_dir}/$x" "${exp_dir}/log/make_kaldi/$x" "${data_dir}/kaldi/$x"
   compare_lengths kaldi
   mv "${s5_data_dir}/$x/feats.scp" "${data_dir}/kaldi/$x/feats.scp"
@@ -164,6 +166,7 @@ Likely, you forgot to add '--snip-edges=false' to the config files when \
     feat="${feats[$idx]}"
     stepsext/make_pybank.sh \
       --nj ${feats_nj} \
+      --compress false \
       --pybank-json "${jsons[$idx]}" \
       --pybank-conf "${pybank_conf}" \
       --cmd "${train_cmd}" \

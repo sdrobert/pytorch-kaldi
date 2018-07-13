@@ -13,7 +13,7 @@
 nj=1
 cmd=run.pl
 pybank_json='{}'
-compress=false
+compress=true
 pybank_conf=conf/pybank.conf
 # End configuration section.
 
