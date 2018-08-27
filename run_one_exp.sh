@@ -1,10 +1,10 @@
 #!/bin/bash
 
 ##########################################################
-# pytorch_speechMLP                                      
-# Mirco Ravanelli 
+# pytorch_speechMLP
+# Mirco Ravanelli
 # Montreal Institute for Learning Algoritms (MILA)
-# University of Montreal 
+# University of Montreal
 # Feb 2018
 ##########################################################
 . env.sh
@@ -25,6 +25,7 @@ s5_dir="${KALDI_ROOT}/egs/timit/s5"
 graph_dir="${s5_dir}/exp/tri3/graph"
 data_dir=data
 seed=0
+ctype=ord
 
 . utils/parse_options.sh
 
@@ -50,6 +51,9 @@ cat "${partial_cfg_folder}/${arch}.cfg" >> "${cfg_file}"
 echo "seed=${seed}" >> "${cfg_file}"
 
 echo "
+[DEFAULT]
+ctype=${ctype}
+
 [optimization]
 N_ep=${N_ep}
 lr=${lr}
@@ -62,12 +66,17 @@ save_gpumem=${save_gpumem}
 
 function write_conf {
     # Writing the single-iteration config file
-    echo "[todo]" > $conf_file
+
+    echo "[DEFAULT]" > $conf_file
+    echo "ctype = ${ctype}" >> $conf_file
+    echo " " >> $conf_file
+
+    echo "[todo]" >> $conf_file
     echo "do_training=$do_training" >> $conf_file
     echo "do_eval=$do_eval" >> $conf_file
     echo "do_forward=$do_forward" >> $conf_file
     echo " " >> $conf_file
-    
+
     echo "[data]" >> $conf_file
     echo "fea_scp=$fea_chunk" >> $conf_file
     echo "fea_opts=$fea_opts" >> $conf_file
@@ -77,7 +86,7 @@ function write_conf {
     echo "count_file=$count_file" >> $conf_file
     echo "out_file=$out_file" >> $conf_file
     echo " " >> $conf_file
-    
+
     echo "[architecture]" >> $conf_file
     echo "NN_type=$NN_type" >> $conf_file
     echo "cnn_pre=$cnn_pre" >> $conf_file
@@ -107,7 +116,7 @@ function write_conf {
     echo "group_counts=$group_counts" >> $conf_file
     echo "init_channels=$init_channels" >> $conf_file
     echo " " >> $conf_file
-    
+
     echo "[optimization]" >> $conf_file
     echo "lr=$lr" >> $conf_file
     echo "optimizer=$optimizer" >> $conf_file
@@ -135,29 +144,29 @@ N_ck=${#tr_fea_scp_list[@]}
 echo 'Training...'
 mkdir -p "${log_dir}"
 # Main Training Loop (Training+Eval)
-for epoch in $(seq -w 1 $N_ep); do 
+for epoch in $(seq -w 1 $N_ep); do
 
   if [ "$epoch" -gt "1" ]; then
     err_dev_prev=$err_dev
   fi
-  
-  for chunk in $(seq -w 0 "$(($N_ck-1))"); do 
+
+  for chunk in $(seq -w 0 "$(($N_ck-1))"); do
 
     fea_chunk=${tr_fea_scp_list[$chunk]}
     fea_opts=$tr_fea_opts
     lab_folder=$tr_lab_folder
     lab_opts=$tr_lab_opts
-    
+
     out_file=$out_folder"/train_ep_"$epoch"_ck_"$chunk".pkl"
     info_file=$out_folder"/train_ep_"$epoch"_ck_"$chunk".info"
     conf_file=$out_folder"/train_ep_"$epoch"_ck_"$chunk".cfg"
 
     [ -e $conf_file ] && rm $conf_file
-    
+
     do_training=1
     do_eval=0
     do_forward=0
-    
+
     # writing config file for training
     write_conf
 
@@ -168,16 +177,16 @@ for epoch in $(seq -w 1 $N_ep); do
 
     # changing random seed for the next chunk
     seed=$(($seed+100))
-    
+
     # removing previous model
     if [ "$epoch" -gt "0" ]; then
      [ -e $pt_file ] && rm $pt_file
     fi
-    
+
     pt_file=$out_file
 
   done
-  
+
   # Computing total training loss
   loss_tr="$(cat $out_folder"/train_ep_"$epoch"_ck_"*".info" | grep 'loss=' | awk -F "=" '{ sum += $2 } END { if (NR > 0) print sum / NR }')"
   err_tr="$(cat $out_folder"/train_ep_"$epoch"_ck_"*".info" | grep 'err=' | awk -F "=" '{ sum += $2 } END { if (NR > 0) print sum / NR }')"
@@ -193,7 +202,7 @@ for epoch in $(seq -w 1 $N_ep); do
   fea_opts=$dev_fea_opts
   lab_folder=$dev_lab_folder
   lab_opts=$dev_lab_opts
-    
+
   conf_file=$out_folder"/eval_ep_"$epoch"_ck_"$chunk".cfg"
   out_file=$out_folder"/eval_ep_"$epoch"_ck_"$chunk".info"
   [ -e $conf_file ] && rm $conf_file
@@ -204,30 +213,30 @@ for epoch in $(seq -w 1 $N_ep); do
   if [ ! -f "$out_file" ]; then
    $cmd "${log_dir}/${arch}_${feat}_eval_dev.log" python run_nn.py --cfg $conf_file || exit 1
   fi
-  
+
   # Computing total dev loss
   loss_dev="$(cat $out_folder"/eval_ep_"$epoch"_ck_"*".info" | grep 'loss=' | awk -F "=" '{ sum += $2 } END { if (NR > 0) print sum / NR }')"
   err_dev="$(cat $out_folder"/eval_ep_"$epoch"_ck_"*".info" | grep 'err=' | awk -F "=" '{ sum += $2 } END { if (NR > 0) print sum / NR }')"
   time_dev="$(cat $out_folder"/eval_ep_"$epoch"_ck_"*".info" | grep 'time=' | awk -F "=" '{ sum += $2 } END { if (NR > 0) print sum}')"
-  
+
   # test config
   do_training=0
   do_eval=1
   do_forward=0
 
-  
+
   # writing config file for eval
   fea_chunk=$te_fea_scp
   fea_opts=$te_fea_opts
   lab_folder=$te_lab_folder
   lab_opts=$te_lab_opts
-    
+
   conf_file=$out_folder"/test_ep_"$epoch"_ck_"$chunk".cfg"
   out_file=$out_folder"/test_ep_"$epoch"_ck_"$chunk".info"
   [ -e $conf_file ] && rm $conf_file
 
   write_conf
-  
+
   # eval on test set
   if [ ! -f "$out_file" ]; then
    $cmd "${log_dir}/${arch}_${feat}_eval_te.log" python run_nn.py --cfg $conf_file || exit 1
@@ -237,10 +246,10 @@ for epoch in $(seq -w 1 $N_ep); do
   loss_te="$(cat $out_folder"/test_ep_"$epoch"_ck_"*".info" | grep 'loss=' | awk -F "=" '{ sum += $2 } END { if (NR > 0) print sum / NR }')"
   err_te="$(cat $out_folder"/test_ep_"$epoch"_ck_"*".info" | grep 'err=' | awk -F "=" '{ sum += $2 } END { if (NR > 0) print sum / NR }')"
   time_te="$(cat $out_folder"/test_ep_"$epoch"_ck_"*".info" | grep 'time=' | awk -F "=" '{ sum += $2 } END { if (NR > 0) print sum}')"
-  
-  
+
+
   printf "epoch %s tr_loss=%s tr_err=%s dev_err=%s test_err=%s learning_rate=%s time=%s sec. \n" $epoch $loss_tr $err_tr $err_dev $err_te $lr $time_tr >>$out_folder/res.res
-  
+
   # Learning Rate Annealing
   if [ "$epoch" -gt "1" ]; then
    relative_imp=`echo "(($err_dev_prev-$err_dev)/$err_dev)<$improvement_threshold" | bc -l`
@@ -248,7 +257,7 @@ for epoch in $(seq -w 1 $N_ep); do
    lr=`echo "$lr*$halving_factor" | bc -l`
   fi
  fi
-  
+
 done
 
 echo 'Forward...'

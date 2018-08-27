@@ -78,3 +78,6 @@ CMakeFiles
 sftp-config.json
 *.un~
 install
+.ftpconfig
+.ftpignore
+.python-version

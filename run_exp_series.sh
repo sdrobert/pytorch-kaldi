@@ -9,6 +9,7 @@ log_dir=exp/log
 nnet_archs=liGRU
 feats=mfcc,kaldi,fbank,gbank,sifbank,sigbank
 num_trials=5
+ctype=ord
 
 . utils/parse_options.sh
 
@@ -23,6 +24,7 @@ for arch in ${nnet_arch_list[@]}; do
       echo "Beginning trial ${trial} of nnet ${arch} using ${feat} feats"
       ./run_one_exp.sh \
         --seed "${trial}" \
+        --ctype "${ctype}" \
         --log-dir "${log_dir}/${arch}_${feat}_${trial}" \
         "${arch}" "${feat}" "exp/${arch}_${feat}_${trial}"
       echo "Done trial ${trial} of nnet ${arch} using ${feat} feats"
