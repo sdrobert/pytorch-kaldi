@@ -81,3 +81,11 @@ install
 .ftpconfig
 .ftpignore
 .python-version
+conf/partial/mfcc.cfg
+conf/partial/kaldi.cfg
+conf/partial/fbank.cfg
+conf/partial/gbank.cfg
+conf/partial/tonebank.cfg
+conf/partial/sifbank.cfg
+conf/partial/sigbank.cfg
+conf/partial/sitonebank.cfg

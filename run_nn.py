@@ -105,7 +105,7 @@ if rnn or do_eval or do_forward:
 
 [data_name,data_set,data_end_index]=load_chunk(fea_scp,fea_opts,lab_folder,lab_opts,left,right,seed)
 
-if not(save_gpumem):
+if use_cuda and not save_gpumem:
    data_set=torch.from_numpy(data_set).float().cuda()
 else:
    data_set=torch.from_numpy(data_set).float()
@@ -120,6 +120,8 @@ net = ann(options)
 
 # multi gpu data parallelization
 if multi_gpu:
+ print('heeeeere')
+ sys.exit(1)
  net = nn.DataParallel(net)
 
 # Loading model into the cuda device

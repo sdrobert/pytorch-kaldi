@@ -1,3 +1,5 @@
+from __future__ import division
+
 import numpy as np
 import sys
 import torch
@@ -5,7 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from torch.autograd import Variable
-
+from pydrobert.mellin.torch import MellinLinearCorrelation
 
 def flip(x, dim):
     xsize = x.size()
@@ -17,23 +19,66 @@ def flip(x, dim):
     return x.view(xsize)
 
 
-
-
 class CNN_feaproc(nn.Module):
 
-    def __init__(self):
-       super(CNN_feaproc,self).__init__()
-       self.conv1 = nn.Conv2d(1, 100, 3)
-       self.conv2 = nn.Conv2d(100, 50, 5)
+    def __init__(self, options):
+        super(CNN_feaproc, self).__init__()
+        if options.act == 'relu':
+            act = nn.ReLU
+        elif options.act == 'tanh':
+            act = nn.Tanh
+        elif options.act == 'sigmoid':
+            act = nn.Sigmoid
+        elif options.act == 'normrelu':
+            act = normrelu
+        else:
+            raise ValueError('invalid activation: {}'.format(options.act))
+        self.cw_size = int(options.cw_left) + int(options.cw_right) + 1
+        kernel_size = options.kern_size
+        if options.conv_type == 'conv':
+            if not (kernel_size[0] & 1) or not (kernel_size[1] & 1):
+                raise ValueError('kernel must have odd lengths for conv')
+            p = (kernel_size[0] // 2, kernel_size[1] // 2)
+            r = (0, 0)
+        else:
+            p1 = kernel_size[1] // 2
+            r1 = kernel_size[1] - p1 - 1
+            if options.conv_type == 'mconv_stretch':
+                p = (kernel_size[0] - 1, p1)
+                r = (0, r1)
+            elif options.conv_type == 'mconv_pad':
+                p = (0, p1)
+                r0 = self.cw_size
+                r0 -= (self.cw_size + kernel_size[0] - 1) // kernel_size[0]
+                r = (r0, r1)
+            else:
+                raise ValueError('Invalid conv type: {}'.format(
+                    options.conv_type))
+        layers = []
+        last_channel_size = 1
+        for conv_channel_size in options.conv_channel_sizes + (1,):
+            if options.conv_type == 'conv':
+                layers.append(nn.Conv2d(
+                    last_channel_size, conv_channel_size, kernel_size,
+                    padding=p))
+            else:
+                layers.append(MellinLinearCorrelation(
+                    last_channel_size, conv_channel_size, kernel_size,
+                    p=p, r=r))
+            layers.append(act())
+            last_channel_size = conv_channel_size
+        self.layers = nn.ModuleList(layers)
 
     def forward(self, x):
-       steps=x.shape[0]
-       batch=x.shape[1]
-       x=x.view(x.shape[0]*x.shape[1],1,-1,11)
-       out = F.max_pool2d(self.conv1(x), (2, 1))
-       out = F.max_pool2d(self.conv2(out), (2, 2))
-       out= out.view(steps,batch,-1)
-       return out
+        steps = x.shape[0]
+        batch = x.shape[1]
+        x = x.view(steps * batch, 1, self.cw_size, -1)
+        for layer in self.layers:
+            for y in layer.parameters():
+                print(y.device)
+            x = layer(x)
+        x = x.view(steps, batch, -1)
+        return x
 
 
 class LayerNorm(nn.Module):
@@ -54,29 +99,10 @@ class normrelu(nn.Module):
     def __init__(self):
         super(normrelu, self).__init__()
 
-
     def forward(self, x):
         dim=1
         x=F.relu(x)/(torch.max(x,dim,keepdim=True)[0])
         return x
-
-#class normrelu(torch.autograd.Function):
-#
-#    @staticmethod
-#    def forward(ctx, input):
-
-#        ctx.save_for_backward(input)
-#        return input.clamp(min=0)/(torch.max(input,1,keepdim=True)[0])
-
-#    @staticmethod
-#    def backward(ctx, grad_output):
-#        """
-#        # same as Relu
-#        """
-#        input, = ctx.saved_tensors
-#        grad_input = grad_output.clone()
-#        grad_input[input < 0] = 0
-#        return grad_input
 
 
 # see https://github.com/pytorch/vision/blob/master/torchvision/models/resnet.py
@@ -542,8 +568,7 @@ class GRU(nn.Module):
         curr_dim=self.input_dim
 
         if self.cnn_pre: # use only for 11 input frames
-         curr_dim=700
-         self.cnn=CNN_feaproc()
+         self.cnn = CNN_feaproc(options)
 
         for i in range(self.N_hid):
 
@@ -617,7 +642,7 @@ class GRU(nn.Module):
           reg=0
 
       if self.cnn_pre:
-          x=self.cnn(x)
+          x = self.cnn(x)
 
       # Processing hidden layers
       for i in range(self.N_hid):
@@ -760,8 +785,7 @@ class RNN(nn.Module):
         self.uh  = nn.ModuleList([]) # Candidate (feed-forward)
 
         if self.cnn_pre:
-            self.cnn=CNN_feaproc()
-
+            self.cnn = CNN_feaproc(options)
 
         if self.use_batchnorm:
          self.bn_wx  = nn.ModuleList([])
@@ -794,9 +818,6 @@ class RNN(nn.Module):
             self.act_gate=normrelu()
 
         curr_dim=self.input_dim
-
-        if self.cnn_pre:
-         curr_dim=700
 
         for i in range(self.N_hid):
 
@@ -859,11 +880,7 @@ class RNN(nn.Module):
 
        # cnn pre-processing
       if self.cnn_pre:
-          x=self.cnn(x)
-
-
-
-
+          x = self.cnn(x)
 
       # Processing hidden layers
       for i in range(self.N_hid):
@@ -1030,8 +1047,7 @@ class LSTM(nn.Module):
         curr_dim=self.input_dim
 
         if self.cnn_pre: # use only for 11 input frames
-         curr_dim=700
-         self.cnn=CNN_feaproc()
+         self.cnn = CNN_feaproc(options)
 
         for i in range(self.N_hid):
 

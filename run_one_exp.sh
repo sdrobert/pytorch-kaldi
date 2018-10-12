@@ -29,26 +29,24 @@ ctype=ord
 
 . utils/parse_options.sh
 
-if [ $# != 3 ]; then
-  echo -e "Usage: ./run_one_exp.sh <arch> <feat> <out-folder>"
-  echo -e "e.g. ./run_one_exp.sh liGRU fbank exp/liGRU_fbank"
+if [ $# -lt 1 ]; then
+  echo -e "Usage: ./run_one_exp.sh [options] <out-folder> [<cfg1> [<cfg2> ...]]"
+  echo -e "e.g. ./run_one_exp.sh exp/liGRU_fbank liGRU fbank"
   exit 1
 fi
 
-arch=$1
-feat=$2
-out_folder=$3
+out_folder=$1
+exp_name=$(basename "${out_folder}")
 
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
 
 cfg_file="${tmpdir}/init.cfg"
 
-cp "${partial_cfg_folder}/${feat}.cfg" "${cfg_file}"
-echo "out_folder=\"${out_folder}\"
-" >> "${cfg_file}"
-cat "${partial_cfg_folder}/${arch}.cfg" >> "${cfg_file}"
-echo "seed=${seed}" >> "${cfg_file}"
+> "${cfg_file}"
+for cfg_name in "${@:2}"; do
+  cat "${partial_cfg_folder}/${cfg_name}.cfg" >> "${cfg_file}"
+done
 
 echo "
 [DEFAULT]
@@ -62,6 +60,12 @@ halving_factor=${halving_factor}
 improvement_threshold=${improvement_threshold}
 batch_size=${batch_size}
 save_gpumem=${save_gpumem}
+
+[architecture]
+seed=${seed}
+
+[data]
+out_folder=\"${out_folder}\"
 " >> "${cfg_file}"
 
 function write_conf {
@@ -115,6 +119,9 @@ function write_conf {
     echo "ds_factor=$ds_factor" >> $conf_file
     echo "group_counts=$group_counts" >> $conf_file
     echo "init_channels=$init_channels" >> $conf_file
+    echo "conv_type=$conv_type" >> $conf_file
+    echo "kernel_size=$kernel_size" >> $conf_file
+    echo "conv_channel_sizes=$conv_channel_sizes" >> $conf_file
     echo " " >> $conf_file
 
     echo "[optimization]" >> $conf_file
@@ -124,10 +131,13 @@ function write_conf {
     echo "save_gpumem=$save_gpumem" >> $conf_file
 }
 
-
-
 # Parsing cfg file
 source <(grep = $cfg_file)
+if [ -z "${te_data_folder}" ]; then
+  echo -e "None of your config files set te_data_folder. This likely means
+you forgot to pass a config file for features"
+  exit 1
+fi
 IFS=, read -a tr_fea_scp_list <<< $tr_fea_scp
 IFS=, read -a dev_fea_scp_list <<< $dev_fea_scp
 IFS=, read -a te_fea_scp_list <<< $te_fea_scp
@@ -145,7 +155,6 @@ echo 'Training...'
 mkdir -p "${log_dir}"
 # Main Training Loop (Training+Eval)
 for epoch in $(seq -w 1 $N_ep); do
-
   if [ "$epoch" -gt "1" ]; then
     err_dev_prev=$err_dev
   fi
@@ -172,7 +181,7 @@ for epoch in $(seq -w 1 $N_ep); do
 
     # single-chunk training
     if [ ! -f "$info_file" ]; then
-     $cmd "${log_dir}/${arch}_${feat}_train.log" python run_nn.py --cfg $conf_file || exit 1
+     $cmd "${log_dir}/${exp_name}_train.log" python run_nn.py --cfg $conf_file || exit 1
     fi
 
     # changing random seed for the next chunk
@@ -211,7 +220,7 @@ for epoch in $(seq -w 1 $N_ep); do
 
   # eval on dev set
   if [ ! -f "$out_file" ]; then
-   $cmd "${log_dir}/${arch}_${feat}_eval_dev.log" python run_nn.py --cfg $conf_file || exit 1
+   $cmd "${log_dir}/${exp_name}_eval_dev.log" python run_nn.py --cfg $conf_file || exit 1
   fi
 
   # Computing total dev loss
@@ -239,7 +248,7 @@ for epoch in $(seq -w 1 $N_ep); do
 
   # eval on test set
   if [ ! -f "$out_file" ]; then
-   $cmd "${log_dir}/${arch}_${feat}_eval_te.log" python run_nn.py --cfg $conf_file || exit 1
+   $cmd "${log_dir}/${exp_name}_eval_te.log" python run_nn.py --cfg $conf_file || exit 1
   fi
 
   # Computing total test loss
@@ -281,7 +290,7 @@ write_conf
 
 # generating normalized posteriors for test data
 if [ ! -f "$out_file" ]; then
- $cmd "${log_dir}/${arch}_${feat}_forward_dev.log" python run_nn.py --cfg $conf_file || exit 1
+ $cmd "${log_dir}/${exp_name}_forward_dev.log" python run_nn.py --cfg $conf_file || exit 1
 fi
 
 fea_chunk=$te_fea_scp
@@ -298,21 +307,21 @@ info_file=$out_folder"/forward_te_ep_"$epoch"_ck_"$chunk".info"
 write_conf
 
 if [ ! -f "$out_file" ]; then
- $cmd "${log_dir}/${arch}_${feat}_forward_te.log" python run_nn.py --cfg $conf_file || exit 1
+ $cmd "${log_dir}/${exp_name}_forward_te.log" python run_nn.py --cfg $conf_file || exit 1
 fi
 
 echo 'Decoding..'
 # Decoding
 ./decode_dnn_TIMIT.sh \
   "${graph_dir}" \
-  "${data_dir}/${feat}/dev" \
+  "${dev_data_folder}" \
   "${tr_lab_folder}" \
   "${out_folder}/decode_dev" \
   "cat ${out_folder}/forward_dev_ep_${epoch}_ck_${chunk}.pkl"
 
 ./decode_dnn_TIMIT.sh \
   "${graph_dir}" \
-  "${data_dir}/${feat}/test" \
+  "${te_data_folder}" \
   "${tr_lab_folder}" \
   "${out_folder}/decode_test" \
   "cat ${out_folder}/forward_te_ep_${epoch}_ck_${chunk}.pkl"

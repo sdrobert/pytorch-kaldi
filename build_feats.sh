@@ -10,8 +10,10 @@ mfcc_conf=conf/feats/mfcc_s5.conf
 kaldi_conf=conf/feats/kaldi_41.conf
 fbank_json=conf/feats/fbank_41.json
 gbank_json=conf/feats/gbank_41.json
+tonebank_json=conf/feats/tonebank_41.json
 sifbank_json=conf/feats/sifbank_41.json
 sigbank_json=conf/feats/sigbank_41.json
+sitonebank_json=conf/feats/sitonebank_41.json
 s5_dir="${KALDI_ROOT}/egs/timit/s5"
 s5_data_dir="${s5_dir}/data"
 pybank_conf=conf/feats/pybank.conf
@@ -111,6 +113,7 @@ Likely, you forgot to add '--snip-edges=false' to the config files when \
     echo '"' >> "${fp}"
     echo "${cfg_prefix}lab_folder=\"${ali_dir}\"" >> "${fp}"
     echo "${cfg_prefix}lab_opts=ali-to-pdf" >> "${fp}"
+    echo "${cfg_prefix}data_folder=${data_dir}/$1/$x" >> "${fp}"
     if ${si_cmvn} ; then
       echo -n "${cfg_prefix}fea_opts=\"apply-cmvn ark:${data_dir}/$1_ord/${x}_cmvn_snt.ark ark:- ark:- |" \
         >> "${fp}"
@@ -160,9 +163,12 @@ Likely, you forgot to add '--snip-edges=false' to the config files when \
   echo " add-deltas --delta-order=2 ark:- ark:- |\"
 " >> "${partial_cfg_folder}/kaldi.cfg"
 
-  feats=(fbank gbank sifbank sigbank)
-  jsons=("${fbank_json}" "${gbank_json}" "${sifbank_json}" "${sigbank_json}")
-  for idx in `seq 0 3`; do
+  feats=(fbank gbank tonebank sifbank sigbank sitonebank)
+  jsons=(
+    "${fbank_json}" "${gbank_json}" "${tonebank_json}"
+    "${sifbank_json}" "${sigbank_json}" "${sitonebank_json}"
+  )
+  for idx in $(seq 0 $(echo "${#feats[@]} - 1" | bc)); do
     feat="${feats[$idx]}"
     stepsext/make_pybank.sh \
       --nj ${feats_nj} \

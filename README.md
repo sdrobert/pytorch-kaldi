@@ -15,7 +15,7 @@ This project releases a collection of codes and utilities to develop state-of-th
 - recovery/saving checkpoints
 - easy interface with kaldi.
 
-The provided solution is designed for large-scale speech recognition experiments on both standard machines and HPC clusters. 
+The provided solution is designed for large-scale speech recognition experiments on both standard machines and HPC clusters.
 
 ## Prerequisites:
 - Linux is required (we tested our release on Ubuntu 17.04 and various versions of Debian).
@@ -44,16 +44,16 @@ TIMIT dataset.
   - add the line `--snip-edges=false` to *conf/mfcc.conf* and *conf/fbank.conf*
   - run the script *run.sh* sourcing `path.sh` before
   - from the *s5* dir, call
-  ``` 
-  steps/align_fmllr.sh --nj 4 data/dev data/lang exp/tri3 exp/tri3_ali_dev
+  ``` shell
+    steps/align_fmllr.sh --nj 4 data/dev data/lang exp/tri3 exp/tri3_ali_dev
 
-  steps/align_fmllr.sh --nj 4 data/test data/lang exp/tri3 exp/tri3_ali_test
-  ``` 
+    steps/align_fmllr.sh --nj 4 data/test data/lang exp/tri3 exp/tri3_ali_test
+  ```
 
 2. Construct symbolic links to the WSJ recipe's *steps* and *utils*
    directories. If you've properly positioned this folder in TIMIT's recipe
    directory, then the following commands should suffice from this folder:
-   ```
+   ``` shell
     ln -s ../../wsj/s5/utils utils
     ln -s ../../wsj/s5/steps steps
    ```
@@ -63,70 +63,43 @@ TIMIT dataset.
   - Run the script *build_feats.sh*. Have a look at the source for the various
     ways the features can be configured
 
-
 4. Run the experiment(s)
   - A single train/decode cycle can be executed using the *run_one_exp.sh*
     command, for example:
-    ``` 
-    ./run_exp.sh fbank liGRU exp/fbank_liGRU
+    ``` shell
+    ./run_exp.sh exp/fbank_liGRU liGRU fbank
     ```
     Which builds a configuration based on the partial configurations of
     *conf/partial/fbank.cfg* and *conf/partial/liGRU.cfg* and will store
-    results in *exp/fbank_liGRU*.
-  - Alternatively, a whole bunch of train/decode cycles using the script
-    *run_exp_series.sh*
+    results in *exp/fbank_liGRU*. More configuration names can be added as
+    arguments to *run_exp.sh*, resulting in those configurations being appended
+    into one large config
+  - Alternatively, a whole bunch of train/decode cycles can be performed
+    using the script *run_exp_series.sh*. Arguments are comma-delimited lists
+    of the names of partial configurations. Each comma-delimited argument
+    represents a factor; the product of all factors will be run. e.g.
+    ``` shell
+    ./run_exp_series --num_trials 2 a,b c,d e
+    ```
+    is identical to running
+    ``` shell
+    ./run_exp.sh --seed 1 exp/a_c_e_1 a c e
+    ./run_exp.sh --seed 2 exp/a_c_e_2 a c e
+    ./run_exp.sh --seed 1 exp/a_d_e_1 a d e
+    ./run_exp.sh --seed 2 exp/a_d_e_2 a d e
+    ./run_exp.sh --seed 1 exp/b_c_e_1 b c e
+    ./run_exp.sh --seed 2 exp/b_c_e_2 b c e
+    ./run_exp.sh --seed 1 exp/b_d_e_1 b d e
+    ./run_exp.sh --seed 2 exp/b_d_e_2 b d e
+    ```
+    Convenient!
 
 5. Get phone error rates for your experiments. Kaldi's regular strategy is
    to decode utterances using a variety of language model weights, then use
    the best ones for the development and test sets independently. For this
-   behaviour, run the *RESULTS.sh* script. Alternatively,
-   *RESULTS_tunedevonly.sh* finds the best development set language model
+   behaviour, run the *RESULTS* script. Alternatively,
+   *RESULTS_tunedevonly* finds the best development set language model
    weight and reports the error rate of the test set using *that* weight.
-
-
-## TIMIT Results:
-
-The results reported in each cell of the  table are the average *PER%* performance obtained  on the test set  after running five ASR experiments with different initialization seeds. We believe that averaging the performance obtained with different initialization seeds is crucial  for TIMIT, since the natural performance variability might completely hide the experimental evidence.  
-
-The main hyperparameters of the models (i.e., learning rate, number of layers, number of hidden neurons, dropout factor) have been optimized through a grid search performed on the development set (see the config files in *conf/baselines* for an overview on the hyperparameters adopted for each NN). 
-
-The RNN models are bidirectional, use recurrent dropout, and batch normalization is applied to feedforward connections. 
-
-| Model  | mfcc | fbank | fMLLR | 
-| ------ | -----| ------| ------| 
-|  Kaldi DNN Baseline | -----| ------| 18.5 |
-|  MLP  | 18.2 ± 0.19| 18.6 ± 0.24| 16.9 ± 0.19| 
-|LSTM| 15.7 ± 0.27 | 15.1 ± 0.26 |14.7 ± 0.16 | 
-|GRU| 16.0 ± 0.13| 15.3 ± 0.27 |  15.3 ± 0.32| 
-|M-GRU| 16.1  ± 0.28| 15.4 ± 0.11|  15.2 ± 0.23| 
-|li-GRU| **15.5**  ± 0.33| **14.6** ± 0.10|  **14.6** ± 0.32| 
-
-
-The RNN architectures are significantly better than the MLP one. In particular, the Li-GRU model (see [1,2] for more details) performs slightly better that the other models. As expected fMLLR features lead to the best performance. The performance of  *14.6%* obtained with our best fMLLR system is, to the best of our knowledge, one of the best results so far achieved with the TIMIT dataset.
-
-For comparison and reference purposes,  you can find the output results obtained by us in the folders  *exp/our_results/TIMIT_{MLP,RNN,LSTM,GRU,M_GRU,liGRU}*. 
-
-
-## Brief Overview of the Architecture
-
-The main script to run experiments is *run_exp.sh*.  The only parameter that it takes in input is the configuration file, which contains a full description of the data, architecture, optimization and decoding step. The user can use the variable *$cmd* for submitting jobs on HPC clusters.
-
-Each training epoch is divided into many chunks.  The pytorch code *run_nn_single_ep.py* performs training over a single chunk and provides in output a model file in *.pkl* format and a *.info* file (that contains various information such as the current training loss and error). 
-
-After each training epoch, the performance on the dev-set is monitored. If the relative performance improvement  is below a given threshold, the learning rate is decreased by an halving factor. The training loop is iterated for the specified number of training epochs. When training is finished, a forward step is carried on for generating the set of posterior probabilities that will be processed by the kaldi decoder. 
-
-After decoding, the final transcriptions and scores are available in the output folder. If, for some reason, the training procedure is interrupted the process can be resumed starting from the last processed chunk.
-
-
-
-## Adding customized DNN models
-One can easily write its own customized DNN model and plugs it into neural_nets.py. Similarly to the models already implemented, the user has to write a *init* method for initializing the DNN parameters and a forward method. The forward method should take in input the current features *x* and the corresponding labels *lab*. It has to provide at the output the loss, the error and the posterior probabilities of the processed minibatch.  Once the customized DNN has been created, the new model should be imported into the *run_nn_single_ep.py* file in this way:
-
-``` 
-from neural_nets import mydnn as ann
-``` 
-
-It is also important to properly set the label *rnn=1* if the model is a RNN model and *rnn=0* if it is a feedforward DNNs. Note that RNN and feed-forward models are based on different feature processing (for RNN models  the features are ordered according to their length, for feed-forward DNNs the features are shuffled.)
 
 
 ## References
@@ -139,7 +112,3 @@ Emerging Topics in Computational Intelligence. [ArXiv](https://arxiv.org/abs/180
 [3] M. Ravanelli, "Deep Learning for Distant Speech Recognition", PhD Thesis, Unitn 2017. [ArXiv](https://arxiv.org/abs/1712.06086)
 
 [4] D. Serdyuk, R. Nan Ke, A. Sordoni, A. Trischler, C. Pal, Y. Bengio, "Twin Networks: Matching the Future for Sequence Generation", ICLR 2018 [ArXiv](https://arxiv.org/pdf/1708.06742.pdf)
-  
-
-
-

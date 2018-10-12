@@ -11,7 +11,6 @@ else:
  import configparser as ConfigParser
 
 def load_dataset(fea_scp,fea_opts,lab_folder,lab_opts,left,right):
-
  fea= { k:m for k,m in kaldi_io.read_mat_ark('ark:copy-feats scp:'+fea_scp+' ark:- |'+fea_opts) }
  lab= { k:v for k,v in kaldi_io.read_vec_int_ark('gunzip -c '+lab_folder+'/ali*.gz | '+lab_opts+' '+lab_folder+'/final.mdl ark:- ark:-|')  if k in fea} # Note that I'm copying only the aligments of the loaded fea
  fea={k: v for k, v in fea.items() if k in lab} # This way I remove all the features without an aligment (see log file in alidir "Did not Succeded")
@@ -130,59 +129,76 @@ def read_opts():
  options.use_cuda=Config.get('architecture', 'use_cuda')
  options.multi_gpu=Config.get('architecture', 'multi_gpu')
 
- if Config.has_option('architecture', 'bidir'):
+ if Config.get('architecture', 'bidir', fallback=''):
     options.bidir=Config.get('architecture', 'bidir')
 
- if Config.has_option('architecture', 'resnet'):
+ if Config.get('architecture', 'resnet', fallback=''):
     options.resnet=Config.get('architecture', 'resnet')
 
- if Config.has_option('architecture', 'act'):
+ if Config.get('architecture', 'act', fallback=''):
     options.act=Config.get('architecture', 'act')
 
- if Config.has_option('architecture', 'resgate'):
+ if Config.get('architecture', 'resgate', fallback=''):
     options.resgate=Config.get('architecture', 'resgate')
 
- if Config.has_option('architecture', 'minimal_gru'):
+ if Config.get('architecture', 'minimal_gru', fallback=''):
     options.minimal_gru=Config.get('architecture', 'minimal_gru')
 
- if Config.has_option('architecture', 'skip_conn'):
+ if Config.get('architecture', 'skip_conn', fallback=''):
     options.skip_conn=Config.get('architecture', 'skip_conn')
 
- if Config.has_option('architecture', 'act_gate'):
+ if Config.get('architecture', 'act_gate', fallback=''):
     options.act_gate=Config.get('architecture', 'act_gate')
 
- if Config.has_option('architecture', 'use_laynorm'):
+ if Config.get('architecture', 'use_laynorm', fallback=''):
     options.use_laynorm=Config.get('architecture', 'use_laynorm')
 
- if Config.has_option('architecture', 'cost'):
+ if Config.get('architecture', 'cost', fallback=''):
     options.cost=Config.get('architecture', 'cost')
 
- if Config.has_option('architecture', 'NN_type'):
+ if Config.get('architecture', 'NN_type', fallback=''):
     options.NN_type=Config.get('architecture', 'NN_type')
 
- if Config.has_option('architecture', 'twin_reg'):
+ if Config.get('architecture', 'twin_reg', fallback=''):
     options.twin_reg=Config.get('architecture', 'twin_reg')
 
- if Config.has_option('architecture', 'twin_w'):
+ if Config.get('architecture', 'twin_w', fallback=''):
     options.twin_w=Config.get('architecture', 'twin_w')
 
- if Config.has_option('architecture', 'cnn_pre'):
+ if Config.get('architecture', 'cnn_pre', fallback=''):
     options.cnn_pre=Config.get('architecture', 'cnn_pre')
 
- if Config.has_option('architecture', 'block_type'):
+ if Config.get('architecture', 'block_type', fallback=''):
     options.block_type=Config.get('architecture', 'block_type')
 
- if Config.has_option('architecture', 'channel_factor'):
+ if Config.get('architecture', 'channel_factor', fallback=''):
     options.channel_factor=Config.get('architecture', 'channel_factor')
 
- if Config.has_option('architecture', 'ds_factor'):
+ if Config.get('architecture', 'ds_factor', fallback=''):
     options.ds_factor=Config.get('architecture', 'ds_factor')
 
- if Config.has_option('architecture', 'group_counts'):
+ if Config.get('architecture', 'group_counts', fallback=''):
     options.group_counts=Config.get('architecture', 'group_counts')
 
- if Config.has_option('architecture', 'init_channels'):
+ if Config.get('architecture', 'init_channels', fallback=''):
     options.init_channels=Config.get('architecture', 'init_channels')
+
+ if Config.get('architecture', 'conv_type', fallback=''):
+    options.conv_type=Config.get('architecture', 'conv_type')
+ else:
+    options.conv_type='conv'
+
+ if Config.get('architecture', 'kern_size', fallback=''):
+    options.kern_size=tuple(int(x) for x in Config.get('architecture', 'kern_size').split(','))
+    if len(options.kern_size) == 1:
+        options.kern_size = (options.kern_size, options.kern_size)
+ else:
+    options.kern_size = (3, 3)
+
+ if Config.get('architecture', 'conv_channel_sizes', fallback=''):
+    options.conv_channel_sizes=tuple(int(x) for x in Config.get('architecture', 'conv_channel_sizes').split(','))
+ else:
+    options.conv_channel_sizes=tuple()
 
  options.N_ep=Config.get('optimization', 'N_ep')
  options.lr=Config.get('optimization', 'lr')
@@ -207,137 +223,154 @@ def read_conf():
  Config.read(cfg_file)
 
  # DATA
- if Config.has_option('data', 'out_file'):
+ if Config.get('data', 'out_file', fallback=''):
   options.out_file=Config.get('data', 'out_file')
 
- if Config.has_option('data', 'fea_scp'):
+ if Config.get('data', 'fea_scp', fallback=''):
   options.fea_scp=Config.get('data', 'fea_scp')
 
- if Config.has_option('data', 'fea_opts'):
+ if Config.get('data', 'fea_opts', fallback=''):
   options.fea_opts=Config.get('data', 'fea_opts')
 
- if Config.has_option('data', 'lab_folder'):
+ if Config.get('data', 'lab_folder', fallback=''):
   options.lab_folder=Config.get('data', 'lab_folder')
 
- if Config.has_option('data', 'lab_opts'):
+ if Config.get('data', 'lab_opts', fallback=''):
   options.lab_opts=Config.get('data', 'lab_opts')
 
- if Config.has_option('data', 'pt_file'):
+ if Config.get('data', 'pt_file', fallback=''):
   options.pt_file=Config.get('data', 'pt_file')
 
- if Config.has_option('data', 'count_file'):
+ if Config.get('data', 'count_file', fallback=''):
   options.count_file=Config.get('data', 'count_file')
 
 
  # TO DO
 
- if Config.has_option('todo', 'do_training'):
+ if Config.get('todo', 'do_training', fallback=''):
      options.do_training=Config.get('todo', 'do_training')
 
- if Config.has_option('todo', 'do_eval'):
+ if Config.get('todo', 'do_eval', fallback=''):
      options.do_eval=Config.get('todo', 'do_eval')
 
- if Config.has_option('todo', 'do_forward'):
+ if Config.get('todo', 'do_forward', fallback=''):
      options.do_forward=Config.get('todo', 'do_forward')
 
 
  # ARCHITECTURE
 
- if Config.has_option('architecture', 'hidden_dim'):
+ if Config.get('architecture', 'hidden_dim', fallback=''):
   options.hidden_dim=Config.get('architecture', 'hidden_dim')
 
- if Config.has_option('architecture', 'N_hid'):
+ if Config.get('architecture', 'N_hid', fallback=''):
   options.N_hid=Config.get('architecture', 'N_hid')
 
- if Config.has_option('architecture', 'drop_rate'):
+ if Config.get('architecture', 'drop_rate', fallback=''):
   options.drop_rate=Config.get('architecture', 'drop_rate')
 
- if Config.has_option('architecture', 'use_batchnorm'):
+ if Config.get('architecture', 'use_batchnorm', fallback=''):
   options.use_batchnorm=Config.get('architecture', 'use_batchnorm')
 
- if Config.has_option('architecture', 'cw_left'):
+ if Config.get('architecture', 'cw_left', fallback=''):
   options.cw_left=Config.get('architecture', 'cw_left')
 
- if Config.has_option('architecture', 'cw_right'):
+ if Config.get('architecture', 'cw_right', fallback=''):
   options.cw_right=Config.get('architecture', 'cw_right')
 
- if Config.has_option('architecture', 'use_seed'):
+ if Config.get('architecture', 'use_seed', fallback=''):
   options.seed=Config.get('architecture', 'seed')
 
- if Config.has_option('architecture', 'use_cuda'):
+ if Config.get('architecture', 'use_cuda', fallback=''):
   options.use_cuda=Config.get('architecture', 'use_cuda')
 
- if Config.has_option('architecture', 'multi_gpu'):
+ if Config.get('architecture', 'multi_gpu', fallback=''):
   options.multi_gpu=Config.get('architecture', 'multi_gpu')
 
- if Config.has_option('architecture', 'bidir'):
+ if Config.get('architecture', 'bidir', fallback=''):
     options.bidir=Config.get('architecture', 'bidir')
 
- if Config.has_option('architecture', 'resnet'):
+ if Config.get('architecture', 'resnet', fallback=''):
     options.resnet=Config.get('architecture', 'resnet')
 
- if Config.has_option('architecture', 'act'):
+ if Config.get('architecture', 'act', fallback=''):
     options.act=Config.get('architecture', 'act')
 
- if Config.has_option('architecture', 'resgate'):
+ if Config.get('architecture', 'resgate', fallback=''):
     options.resgate=Config.get('architecture', 'resgate')
 
- if Config.has_option('architecture', 'minimal_gru'):
+ if Config.get('architecture', 'minimal_gru', fallback=''):
     options.minimal_gru=Config.get('architecture', 'minimal_gru')
 
- if Config.has_option('architecture', 'skip_conn'):
+ if Config.get('architecture', 'skip_conn', fallback=''):
     options.skip_conn=Config.get('architecture', 'skip_conn')
 
- if Config.has_option('architecture', 'act_gate'):
+ if Config.get('architecture', 'act_gate', fallback=''):
     options.act_gate=Config.get('architecture', 'act_gate')
 
- if Config.has_option('architecture', 'use_laynorm'):
+ if Config.get('architecture', 'use_laynorm', fallback=''):
     options.use_laynorm=Config.get('architecture', 'use_laynorm')
 
- if Config.has_option('architecture', 'cost'):
+ if Config.get('architecture', 'cost', fallback=''):
     options.cost=Config.get('architecture', 'cost')
 
- if Config.has_option('architecture', 'NN_type'):
+ if Config.get('architecture', 'NN_type', fallback=''):
     options.NN_type=Config.get('architecture', 'NN_type')
 
- if Config.has_option('architecture', 'twin_reg'):
+ if Config.get('architecture', 'twin_reg', fallback=''):
     options.twin_reg=Config.get('architecture', 'twin_reg')
 
- if Config.has_option('architecture', 'twin_w'):
+ if Config.get('architecture', 'twin_w', fallback=''):
     options.twin_w=Config.get('architecture', 'twin_w')
 
- if Config.has_option('architecture', 'cnn_pre'):
+ if Config.get('architecture', 'cnn_pre', fallback=''):
     options.cnn_pre=Config.get('architecture', 'cnn_pre')
 
- if Config.has_option('architecture', 'seed'):
+ if Config.get('architecture', 'seed', fallback=''):
     options.seed=Config.get('architecture', 'seed')
 
- if Config.has_option('architecture', 'block_type'):
+ if Config.get('architecture', 'block_type', fallback=''):
     options.block_type=Config.get('architecture', 'block_type')
 
- if Config.has_option('architecture', 'channel_factor'):
+ if Config.get('architecture', 'channel_factor', fallback=''):
     options.channel_factor=Config.get('architecture', 'channel_factor')
 
- if Config.has_option('architecture', 'ds_factor'):
+ if Config.get('architecture', 'ds_factor', fallback=''):
     options.ds_factor=Config.get('architecture', 'ds_factor')
 
- if Config.has_option('architecture', 'group_counts'):
+ if Config.get('architecture', 'group_counts', fallback=''):
     options.group_counts=Config.get('architecture', 'group_counts')
 
- if Config.has_option('architecture', 'init_channels'):
+ if Config.get('architecture', 'init_channels', fallback=''):
     options.init_channels=Config.get('architecture', 'init_channels')
 
+ if Config.get('architecture', 'conv_type', fallback=''):
+    options.conv_type=Config.get('architecture', 'conv_type')
+ else:
+    options.conv_type='conv'
+
+ if Config.get('architecture', 'kern_size', fallback=''):
+    options.kern_size=tuple(int(x) for x in Config.get('architecture', 'kern_size').split(','))
+    if len(options.kern_size) == 1:
+        options.kern_size = (options.kern_size, options.kern_size)
+ else:
+    options.kern_size = (3, 3)
+
+ if Config.get('architecture', 'conv_channel_sizes', fallback=''):
+    options.conv_channel_sizes=tuple(int(x) for x in Config.get('architecture', 'conv_channel_sizes').split(','))
+ else:
+    options.conv_channel_sizes=tuple()
+
  # Optimization
- if Config.has_option('optimization', 'lr'):
+ if Config.get('optimization', 'lr', fallback=''):
   options.lr=Config.get('optimization', 'lr')
 
- if Config.has_option('optimization', 'batch_size'):
+ if Config.get('optimization', 'batch_size', fallback=''):
   options.batch_size=Config.get('optimization', 'batch_size')
 
- if Config.has_option('optimization', 'save_gpumem'):
+ if Config.get('optimization', 'save_gpumem', fallback=''):
     options.save_gpumem=Config.get('optimization', 'save_gpumem')
 
- if Config.has_option('optimization', 'optimizer'):
+ if Config.get('optimization', 'optimizer', fallback=''):
   options.optimizer=Config.get('optimization', 'optimizer')
 
  return options
