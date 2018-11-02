@@ -57,11 +57,9 @@ echo "[data]" > "${partial_cfg_folder}/mfcc.cfg"
 echo "count_file=\"${count_file}\"" >> "${partial_cfg_folder}/mfcc.cfg"
 echo "pt_file=none
 " >> "${partial_cfg_folder}/mfcc.cfg"
-cp "${partial_cfg_folder}/mfcc.cfg" "${partial_cfg_folder}/kaldi.cfg"
-cp "${partial_cfg_folder}/mfcc.cfg" "${partial_cfg_folder}/fbank.cfg"
-cp "${partial_cfg_folder}/mfcc.cfg" "${partial_cfg_folder}/gbank.cfg"
-cp "${partial_cfg_folder}/mfcc.cfg" "${partial_cfg_folder}/sifbank.cfg"
-cp "${partial_cfg_folder}/mfcc.cfg" "${partial_cfg_folder}/sigbank.cfg"
+for x in kaldi fbank gbank tonebank sifbank sigbank sitonebank ; do
+  cp "${partial_cfg_folder}/mfcc.cfg" "${partial_cfg_folder}/$x.cfg"
+done
 
 for x in train dev test; do
   if [ $x = train ]; then
