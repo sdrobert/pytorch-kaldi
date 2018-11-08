@@ -100,6 +100,8 @@ TIMIT dataset.
    behaviour, run the *RESULTS* script. Alternatively,
    *RESULTS_tunedevonly* finds the best development set language model
    weight and reports the error rate of the test set using *that* weight.
+   Additionally, you can pipe the output of the results script to *stats.py*
+   to perform a MANOVA analysis.
 
 
 ## References
