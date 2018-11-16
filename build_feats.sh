@@ -27,7 +27,8 @@ partial_cfg_folder=conf/partial
 data_dir=data
 exp_dir=exp
 count_file="${s5_dir}/exp/tri3/ali_train_pdf.counts"
-si_cmvn=true
+gmm_dir="${s5_dir}/exp/tri3"
+si_cmvn=false
 
 . utils/parse_options.sh
 
@@ -57,9 +58,12 @@ echo "[data]" > "${partial_cfg_folder}/mfcc.cfg"
 echo "count_file=\"${count_file}\"" >> "${partial_cfg_folder}/mfcc.cfg"
 echo "pt_file=none
 " >> "${partial_cfg_folder}/mfcc.cfg"
-for x in kaldi fbank gbank tonebank sifbank sigbank sitonebank ; do
+for x in fmllr kaldi fbank gbank tonebank sifbank sigbank sitonebank ; do
   cp "${partial_cfg_folder}/mfcc.cfg" "${partial_cfg_folder}/$x.cfg"
 done
+if $si_cmvn ; then
+  rm "${partial_cfg_folder}/fmllr.cfg"
+fi
 
 for x in train dev test; do
   if [ $x = train ]; then
@@ -134,6 +138,7 @@ Likely, you forgot to add '--snip-edges=false' to the config files when \
   mv "${s5_data_dir}/$x/feats.scp" "${data_dir}/mfcc/$x/feats.scp"
   cp "${s5_data_dir}/$x/"{wav.scp,utt2spk,spk2utt,text,stm,glm,spk2gender} \
     "${data_dir}/mfcc/$x"
+  cp -r "${s5_data_dir}/$x/split"* "${data_dir}/mfcc/$x/"  # for fmllr
   ./create_chunks.sh \
     "${data_dir}/mfcc/$x" "${data_dir}/mfcc_ord" ${num_chunks} $x 0
   ./create_chunks.sh \
@@ -141,6 +146,41 @@ Likely, you forgot to add '--snip-edges=false' to the config files when \
   append_to_cfg mfcc
   echo " add-deltas --delta-order=2 ark:- ark:- |\"
 " >> "${partial_cfg_folder}/mfcc.cfg"
+
+  # mfcc+fmllr creation
+  if ! $si_cmvn ; then
+    if [ $x = train ]; then
+      transform_dir="${ali_train_dir}"
+    else
+      transform_dir="${gmm_dir}/decode_$x"
+    fi
+    # we have to temporarily put cmvn in mfcc dir. We'll cut em on exit
+    compute-cmvn-stats \
+      "--spk2utt=ark:${data_dir}/mfcc/$x/spk2utt" \
+      "scp:${data_dir}/mfcc/$x/feats.scp" \
+      "ark,scp:${data_dir}/mfcc/$x/cmvn.ark,${data_dir}/mfcc/$x/cmvn.scp"
+    trap "rm -f '${data_dir}/mfcc/$x'/cmvn.*" EXIT
+    steps/nnet/make_fmllr_feats.sh \
+      --nj ${feats_nj} \
+      --cmd "${train_cmd}" \
+      --transform-dir "${transform_dir}" \
+      "${s5_data_dir}/$x" \
+      "${data_dir}/mfcc/$x" \
+      "${gmm_dir}" \
+      "${exp_dir}/log/make_fmllr/$x" \
+      "${data_dir}/fmllr/$x"
+    compare_lengths fmllr
+    mv "${s5_data_dir}/$x/feats.scp" "${data_dir}/fmllr/$x/feats.scp"
+    cp "${s5_data_dir}/$x/"{wav.scp,utt2spk,spk2utt,text,stm,glm,spk2gender} \
+      "${data_dir}/fmllr/$x"
+    ./create_chunks.sh \
+      "${data_dir}/mfcc/$x" "${data_dir}/mfcc_ord" ${num_chunks} $x 0
+    ./create_chunks.sh \
+      "${data_dir}/mfcc/$x" "${data_dir}/mfcc_shu" ${num_chunks} $x 1
+    append_to_cfg mfcc
+    echo " add-deltas --delta-order=2 ark:- ark:- |\"
+" >> "${partial_cfg_folder}/fmllr.cfg"
+  fi
 
   # kaldi (kaldi's fbanks) creation
   steps/make_fbank.sh \
