@@ -120,7 +120,7 @@ Likely, you forgot to add '--snip-edges=false' to the config files when \
       echo -n "${cfg_prefix}fea_opts=\"apply-cmvn ark:${data_dir}/$1_ord/${x}_cmvn_snt.ark ark:- ark:- |" \
         >> "${fp}"
     else
-      echo -n "${cfg_prefix}fea_opts=\"apply-cmvn --utt2spk=ark:${data_dir}/$1/utt2spk ark:${data_dir}/$1_ord/${x}_cmvn_speaker.ark ark:- ark:- |" \
+      echo -n "${cfg_prefix}fea_opts=\"apply-cmvn --utt2spk=ark:${data_dir}/$1/$x/utt2spk ark:${data_dir}/$1_ord/${x}_cmvn_speaker.ark ark:- ark:- |" \
         >> "${fp}"
     fi
   }
@@ -174,32 +174,32 @@ Likely, you forgot to add '--snip-edges=false' to the config files when \
     cp "${s5_data_dir}/$x/"{wav.scp,utt2spk,spk2utt,text,stm,glm,spk2gender} \
       "${data_dir}/fmllr/$x"
     ./create_chunks.sh \
-      "${data_dir}/mfcc/$x" "${data_dir}/mfcc_ord" ${num_chunks} $x 0
+      "${data_dir}/fmllr/$x" "${data_dir}/fmllr_ord" ${num_chunks} $x 0
     ./create_chunks.sh \
-      "${data_dir}/mfcc/$x" "${data_dir}/mfcc_shu" ${num_chunks} $x 1
-    append_to_cfg mfcc
-    echo " add-deltas --delta-order=2 ark:- ark:- |\"
+      "${data_dir}/fmllr/$x" "${data_dir}/fmllr_shu" ${num_chunks} $x 1
+    append_to_cfg fmllr
+    echo "\"
 " >> "${partial_cfg_folder}/fmllr.cfg"
   fi
 
   # kaldi (kaldi's fbanks) creation
-  steps/make_fbank.sh \
-    --nj ${feats_nj} \
-    --fbank-config "${kaldi_conf}" \
-    --cmd "${train_cmd}" \
-    --compress false \
-    "${s5_data_dir}/$x" "${exp_dir}/log/make_kaldi/$x" "${data_dir}/kaldi/$x"
-  compare_lengths kaldi
-  mv "${s5_data_dir}/$x/feats.scp" "${data_dir}/kaldi/$x/feats.scp"
-  cp "${s5_data_dir}/$x/"{wav.scp,utt2spk,spk2utt,text,stm,glm,spk2gender} \
-    "${data_dir}/kaldi/$x"
-  ./create_chunks.sh \
-    "${data_dir}/kaldi/$x" "${data_dir}/kaldi_ord" ${num_chunks} $x 0
-  ./create_chunks.sh \
-    "${data_dir}/kaldi/$x" "${data_dir}/kaldi_shu" ${num_chunks} $x 1
+  # steps/make_fbank.sh \
+  #   --nj ${feats_nj} \
+  #   --fbank-config "${kaldi_conf}" \
+  #   --cmd "${train_cmd}" \
+  #   --compress false \
+  #   "${s5_data_dir}/$x" "${exp_dir}/log/make_kaldi/$x" "${data_dir}/kaldi/$x"
+  # compare_lengths kaldi
+  # mv "${s5_data_dir}/$x/feats.scp" "${data_dir}/kaldi/$x/feats.scp"
+  # cp "${s5_data_dir}/$x/"{wav.scp,utt2spk,spk2utt,text,stm,glm,spk2gender} \
+  #   "${data_dir}/kaldi/$x"
+  # ./create_chunks.sh \
+  #   "${data_dir}/kaldi/$x" "${data_dir}/kaldi_ord" ${num_chunks} $x 0
+  # ./create_chunks.sh \
+  #   "${data_dir}/kaldi/$x" "${data_dir}/kaldi_shu" ${num_chunks} $x 1
   append_to_cfg kaldi
-  echo " add-deltas --delta-order=2 ark:- ark:- |\"
-" >> "${partial_cfg_folder}/kaldi.cfg"
+  echo "\"
+" >> "${partial_cfg_folder}/${feat}.cfg"
 
   feats=(fbank gbank tonebank sifbank sigbank sitonebank)
   jsons=(
@@ -208,23 +208,23 @@ Likely, you forgot to add '--snip-edges=false' to the config files when \
   )
   for idx in $(seq 0 $(echo "${#feats[@]} - 1" | bc)); do
     feat="${feats[$idx]}"
-    stepsext/make_pybank.sh \
-      --nj ${feats_nj} \
-      --compress false \
-      --pybank-json "${jsons[$idx]}" \
-      --pybank-conf "${pybank_conf}" \
-      --cmd "${train_cmd}" \
-      "${s5_dir}/${data_dir}/$x" \
-      "${exp_dir}/log/make_${feat}/$x" \
-      "${data_dir}/${feat}/$x"
-    compare_lengths ${feat}
-    mv "${s5_data_dir}/$x/feats.scp" "${data_dir}/${feat}/$x/feats.scp"
-    cp "${s5_data_dir}/$x/"{wav.scp,utt2spk,spk2utt,text,stm,glm,spk2gender} \
-      "${data_dir}/${feat}/$x"
-    ./create_chunks.sh \
-      "${data_dir}/${feat}/$x" "${data_dir}/${feat}_ord" ${num_chunks} $x 0
-    ./create_chunks.sh \
-      "${data_dir}/${feat}/$x" "${data_dir}/${feat}_shu" ${num_chunks} $x 1
+    # stepsext/make_pybank.sh \
+    #   --nj ${feats_nj} \
+    #   --compress false \
+    #   --pybank-json "${jsons[$idx]}" \
+    #   --pybank-conf "${pybank_conf}" \
+    #   --cmd "${train_cmd}" \
+    #   "${s5_dir}/${data_dir}/$x" \
+    #   "${exp_dir}/log/make_${feat}/$x" \
+    #   "${data_dir}/${feat}/$x"
+    # compare_lengths ${feat}
+    # mv "${s5_data_dir}/$x/feats.scp" "${data_dir}/${feat}/$x/feats.scp"
+    # cp "${s5_data_dir}/$x/"{wav.scp,utt2spk,spk2utt,text,stm,glm,spk2gender} \
+    #   "${data_dir}/${feat}/$x"
+    # ./create_chunks.sh \
+    #   "${data_dir}/${feat}/$x" "${data_dir}/${feat}_ord" ${num_chunks} $x 0
+    # ./create_chunks.sh \
+    #   "${data_dir}/${feat}/$x" "${data_dir}/${feat}_shu" ${num_chunks} $x 1
     append_to_cfg ${feat}
     echo "\"
 " >> "${partial_cfg_folder}/${feat}.cfg"
