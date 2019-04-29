@@ -48,7 +48,7 @@ for f in "$@"; do
   it=$(bc -l <<< "${it} + 1")
   epochs=( $(ls "${f}/eval_ep_"*"_ck_${eval_chunks}.info" | awk -F'_' '{print $(NF - 2)}') )
   for epoch in "${epochs[@]}"; do
-    echo -n "${epoch},${it}"
+    echo -n "${it},${epoch}"
     for ck in "${train_chunks[@]}"; do
       awk -F'=' '$1 == "loss" || $1 == "err" {printf ",%s", $2}' "${f}/train_ep_${epoch}_ck_${ck}.info"
     done

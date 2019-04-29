@@ -44,16 +44,17 @@ TIMIT dataset.
   - add the line `--snip-edges=false` to *conf/mfcc.conf* and *conf/fbank.conf*
   - run the script *run.sh* sourcing `path.sh` before
   - from the *s5* dir, call
-  ``` shell
+  ``` sh
     steps/align_fmllr.sh --nj 4 data/dev data/lang exp/tri3 exp/tri3_ali_dev
-
+    # test ali won't actually be used, except to verify the length of output
+    # features and as a placeholder in run_nn.py
     steps/align_fmllr.sh --nj 4 data/test data/lang exp/tri3 exp/tri3_ali_test
   ```
 
 2. Construct symbolic links to the WSJ recipe's *steps* and *utils*
    directories. If you've properly positioned this folder in TIMIT's recipe
    directory, then the following commands should suffice from this folder:
-   ``` shell
+   ``` sh
     ln -s ../../wsj/s5/utils utils
     ln -s ../../wsj/s5/steps steps
    ```
